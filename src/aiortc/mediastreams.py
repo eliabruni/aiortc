@@ -143,6 +143,6 @@ class VideoStreamTrack(MediaStreamTrack):
         frame = VideoFrame(width=640, height=480)
         for p in frame.planes:
             p.update(bytes(p.buffer_size))
-        frame.pts = pts
+        frame.pts = int(time.time() * 1000)
         frame.time_base = time_base
         return frame

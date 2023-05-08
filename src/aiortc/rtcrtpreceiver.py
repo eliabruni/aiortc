@@ -450,6 +450,20 @@ class RTCRtpReceiver:
         """
         self.__log_debug("< %s", packet)
 
+         # Extract transmission timestamp from header extensions
+        transmission_timestamp = packet.extensions.transmission_time
+
+        print("HERE")
+
+        print("transmission_timestamp: ", str(transmission_timestamp))
+
+        # Compute the image frame transmission latency
+        if transmission_timestamp is not None:
+            arrival_timestamp = int(time.time() * 1000)
+            latency_ms = arrival_timestamp - transmission_timestamp
+            self.__log_debug("Image frame transmission latency: %d ms", latency_ms)
+            print("Image frame transmission latency: %d ms", latency_ms)
+
         # feed bitrate estimator
         if self.__remote_bitrate_estimator is not None:
             if packet.extensions.abs_send_time is not None:

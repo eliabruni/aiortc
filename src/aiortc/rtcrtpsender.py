@@ -14,7 +14,7 @@ from .codecs import get_capabilities, get_encoder, is_rtx
 from .codecs.base import Encoder
 from .exceptions import InvalidStateError
 from .mediastreams import MediaStreamError, MediaStreamTrack
-from .rtcrtpparameters import RTCRtpCodecParameters, RTCRtpSendParameters
+from .rtcrtpparameters import RTCRtpCodecParameters, RTCRtpSendParameters, RTCRtpHeaderExtensionParameters
 from .rtp import (
     RTCP_PSFB_APP,
     RTCP_PSFB_PLI,
@@ -44,12 +44,14 @@ logger = logging.getLogger(__name__)
 
 RTT_ALPHA = 0.85
 
-
+# PR_STUFF
 class RTCEncodedFrame:
-    def __init__(self, payloads: List[bytes], timestamp: int, audio_level: int):
+    def __init__(self, payloads: List[bytes], timestamp: int, audio_level: int, transmission_time: float):
         self.payloads = payloads
         self.timestamp = timestamp
         self.audio_level = audio_level
+        self.transmission_time = transmission_time
+
 
 
 class RTCRtpSender:
@@ -95,6 +97,10 @@ class RTCRtpSender:
         self.__started = False
         self.__stats = RTCStatsReport()
         self.__transport = transport
+
+        # PR_STUFF
+        self.RTP_HEADER_EXTENSION_TRANSMISSION_TIME_URI = "urn:ietf:params:rtp-hdrext:transmission-time"
+
 
         # stats
         self.__lsr: Optional[int] = None
@@ -190,6 +196,14 @@ class RTCRtpSender:
 
             # make note of the RTP header extension IDs
             self.__transport._register_rtp_sender(self, parameters)
+
+            parameters.headerExtensions.append(
+                RTCRtpHeaderExtensionParameters(
+                    id=len(parameters.headerExtensions) + 1,
+                    uri=self.RTP_HEADER_EXTENSION_TRANSMISSION_TIME_URI
+                )
+            )
+
             self.__rtp_header_extensions_map.configure(parameters)
 
             # make note of RTX payload type
@@ -286,7 +300,9 @@ class RTCRtpSender:
         else:
             payloads, timestamp = self.__encoder.pack(data)
 
-        return RTCEncodedFrame(payloads, timestamp, audio_level)
+        # PR_STUFF
+        return RTCEncodedFrame(payloads, timestamp, audio_level, time.time())
+
 
     async def _retransmit(self, sequence_number: int) -> None:
         """
@@ -343,6 +359,13 @@ class RTCRtpSender:
                         clock.current_ntp_time() >> 14
                     ) & 0x00FFFFFF
                     packet.extensions.mid = self.__mid
+
+                    # PR_STUFF
+                    packet.extensions.transmission_time = int(
+                        enc_frame.transmission_time * 1e6) & 0x00FFFFFF
+
+
+
                     if enc_frame.audio_level is not None:
                         packet.extensions.audio_level = (False, -enc_frame.audio_level)
 
